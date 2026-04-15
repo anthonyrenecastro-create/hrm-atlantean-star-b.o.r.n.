@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  atlantean-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.atlantean
+    ports:
+      - "5001:5001"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      REDIS_HOST: redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ATLANTEAN_BACKEND_URL: http://atlantean-backend:5001
+    depends_on:
+      - atlantean-backend
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+volumes:
+  redis_data:
